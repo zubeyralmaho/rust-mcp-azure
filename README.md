@@ -23,6 +23,10 @@ If you use the Azure Developer CLI VS Code extension, you can also paste this te
 zubeyralmaho/rust-mcp-azure
 ```
 
+## Architecture
+
+![Architecture Diagram](./docs/architecture.png)
+
 ## Positioning
 
 This project is intentionally positioned as a direct `azd` template candidate.
@@ -232,21 +236,6 @@ This is still an early scaffold, not a finished template release.
 - the safe metrics tool is Linux-oriented in v1; macOS is supported only as a local-development fallback
 - the Bicep and `azd` assets are scaffolded but `azd up` itself has not been exercised in this workspace because `azd` is not installed here
 - CI runs `cargo fmt`, `cargo clippy`, `cargo test`, and `bicep build`
-
-## Language Policy
-
-All repository artifacts should be English-first:
-
-- source code
-- documentation
-- commit messages
-- public repository metadata
-
-Separate Turkish content can be published later as external launch material, such as a case-study style LinkedIn or Medium article.
-
-## Working Note
-
-The file [project-prompt.md](./project-prompt.md) keeps the original concept narrative. The documents under [docs](./docs) are the normalized project source of truth.
 
 ## License
 
