@@ -9,6 +9,20 @@ The point of the project is straightforward: when AI agents need higher performa
 
 The repository now includes a working Rust service skeleton, a container build, and an initial `azd` plus Bicep deployment scaffold.
 
+## Quick Use
+
+If you already have the Azure Developer CLI installed, initialize this template in a new directory with:
+
+```bash
+azd init -t zubeyralmaho/rust-mcp-azure
+```
+
+If you use the Azure Developer CLI VS Code extension, you can also paste this template URL directly:
+
+```text
+zubeyralmaho/rust-mcp-azure
+```
+
 ## Positioning
 
 This project is intentionally positioned as a direct `azd` template candidate.
