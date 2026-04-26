@@ -228,15 +228,6 @@ The script auto-resolves `BASE_URL` and `MCP_API_KEY` from the active `azd` envi
 
 The script exits non-zero on the first failure so it can gate release pipelines.
 
-## Current Limits
-
-This is still an early scaffold, not a finished template release.
-
-- auth is a shared Bearer secret, not a full identity model
-- the safe metrics tool is Linux-oriented in v1; macOS is supported only as a local-development fallback
-- the Bicep and `azd` assets are scaffolded but `azd up` itself has not been exercised in this workspace because `azd` is not installed here
-- CI runs `cargo fmt`, `cargo clippy`, `cargo test`, and `bicep build`
-
 ## License
 
 Released under the [MIT License](./LICENSE).
