@@ -1,0 +1,5 @@
+target/
+.git/
+.github/
+.azure/
+.DS_Store

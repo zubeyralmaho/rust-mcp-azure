@@ -1,0 +1,4 @@
+target/
+.azure/
+.env
+.DS_Store
