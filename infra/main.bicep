@@ -4,27 +4,64 @@ targetScope = 'resourceGroup'
 param location string = resourceGroup().location
 
 @description('Unique azd environment name used to derive resource names.')
+@minLength(1)
+@maxLength(32)
 param environmentName string
 
-@description('Azure Log Analytics workspace name.')
-param logAnalyticsWorkspaceName string = 'log-${environmentName}'
+@description('Azure Log Analytics workspace name. Defaults to a name derived from the environment.')
+param logAnalyticsWorkspaceName string = ''
 
-@description('Azure Container Apps environment name.')
-param containerAppsEnvironmentName string = 'cae-${environmentName}'
+@description('Azure Container Apps environment name. Defaults to a name derived from the environment.')
+param containerAppsEnvironmentName string = ''
 
-@description('Azure Container App name for the MCP service.')
-param containerAppName string = 'ca-${environmentName}'
+@description('Azure Container App name for the MCP service. Defaults to a name derived from the environment.')
+param containerAppName string = ''
 
 @secure()
 @description('Shared secret used by the service for Bearer authentication in v1.')
+@minLength(16)
 param mcpApiKey string
 
+@description('Image reference for the MCP service container. Updated by azd during deployment.')
+param containerImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+
+@description('Number of CPU cores allocated to each replica.')
+param containerCpu string = '0.5'
+
+@description('Memory allocated to each replica.')
+param containerMemory string = '1.0Gi'
+
+@description('Minimum replica count. Set to 1 to disable cold starts.')
+@minValue(0)
+@maxValue(10)
+param minReplicas int = 0
+
+@description('Maximum replica count for HTTP-driven autoscale.')
+@minValue(1)
+@maxValue(30)
+param maxReplicas int = 3
+
+@description('Concurrent HTTP requests per replica before the scaler adds capacity.')
+@minValue(1)
+@maxValue(1000)
+param scaleConcurrentRequests int = 50
+
 var containerAppPort = 8080
-var placeholderImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+var resourceToken = toLower(uniqueString(subscription().id, resourceGroup().id, environmentName))
+var resolvedLogAnalyticsWorkspaceName = empty(logAnalyticsWorkspaceName) ? 'log-${environmentName}-${resourceToken}' : logAnalyticsWorkspaceName
+var resolvedContainerAppsEnvironmentName = empty(containerAppsEnvironmentName) ? 'cae-${environmentName}-${resourceToken}' : containerAppsEnvironmentName
+var resolvedContainerAppName = empty(containerAppName) ? 'ca-${environmentName}-${resourceToken}' : containerAppName
+
+var commonTags = {
+  'azd-env-name': environmentName
+  project: 'rust-mcp-azure'
+  'managed-by': 'bicep'
+}
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: logAnalyticsWorkspaceName
+  name: resolvedLogAnalyticsWorkspaceName
   location: location
+  tags: commonTags
   properties: {
     sku: {
       name: 'PerGB2018'
@@ -34,8 +71,9 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
 }
 
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
-  name: containerAppsEnvironmentName
+  name: resolvedContainerAppsEnvironmentName
   location: location
+  tags: commonTags
   properties: {
     appLogsConfiguration: {
       destination: 'log-analytics'
@@ -48,11 +86,13 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01'
 }
 
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
-  name: containerAppName
+  name: resolvedContainerAppName
   location: location
-  tags: {
+  tags: union(commonTags, {
     'azd-service-name': 'api'
-    'azd-env-name': environmentName
+  })
+  identity: {
+    type: 'SystemAssigned'
   }
   properties: {
     managedEnvironmentId: containerAppsEnvironment.id
@@ -75,7 +115,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'api'
-          image: placeholderImage
+          image: containerImage
           env: [
             {
               name: 'PORT'
@@ -99,14 +139,46 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             }
           ]
           resources: {
-            cpu: 0.5
-            memory: '1Gi'
+            cpu: json(containerCpu)
+            memory: containerMemory
           }
+          probes: [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/healthz'
+                port: containerAppPort
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 30
+              failureThreshold: 3
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/healthz'
+                port: containerAppPort
+              }
+              initialDelaySeconds: 2
+              periodSeconds: 10
+              failureThreshold: 3
+            }
+          ]
         }
       ]
       scale: {
-        minReplicas: 0
-        maxReplicas: 1
+        minReplicas: minReplicas
+        maxReplicas: maxReplicas
+        rules: [
+          {
+            name: 'http-concurrency'
+            http: {
+              metadata: {
+                concurrentRequests: string(scaleConcurrentRequests)
+              }
+            }
+          }
+        ]
       }
     }
   }
@@ -114,5 +186,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
 
 output SERVICE_API_ENDPOINT_URL string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 output SERVICE_API_RESOURCE_NAME string = containerApp.name
+output SERVICE_API_IDENTITY_PRINCIPAL_ID string = containerApp.identity.principalId
 output AZURE_CONTAINER_APPS_ENVIRONMENT_NAME string = containerAppsEnvironment.name
 output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = logAnalyticsWorkspace.name
+output AZURE_LOG_ANALYTICS_WORKSPACE_ID string = logAnalyticsWorkspace.id
