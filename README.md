@@ -1,5 +1,8 @@
 # Rust MCP Server on Azure Container Apps
 
+[![CI](https://github.com/zubeyralmaho/rust-mcp-azure/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zubeyralmaho/rust-mcp-azure/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 This repository defines a Rust-based Model Context Protocol (MCP) server designed to run on Azure Container Apps and to ship as a first-class `azd` template candidate, not as a one-off demo.
 
 The point of the project is straightforward: when AI agents need higher performance, tighter memory safety, and a more controlled runtime than typical Python or Node.js stacks provide, Azure developers should have a ready-to-deploy Rust option.
