@@ -43,6 +43,8 @@ The message to that audience is clear: you may be using Python or Node.js today,
 - [Decisions and Open Questions](./docs/open-questions.md)
 - [Template Acceptance Criteria](./docs/template-acceptance.md)
 - [Contributing](./CONTRIBUTING.md)
+- [Changelog](./CHANGELOG.md)
+- [Security Policy](./SECURITY.md)
 
 ## Current Scope
 
@@ -228,3 +230,7 @@ Separate Turkish content can be published later as external launch material, suc
 ## Working Note
 
 The file [project-prompt.md](./project-prompt.md) keeps the original concept narrative. The documents under [docs](./docs) are the normalized project source of truth.
+
+## License
+
+Released under the [MIT License](./LICENSE).
