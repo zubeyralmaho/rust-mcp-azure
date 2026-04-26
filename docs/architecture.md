@@ -12,6 +12,10 @@ The initial architecture should stay intentionally small:
 
 ## Component Diagram
 
+![Component diagram](./architecture.png)
+
+The diagram source lives in [architecture.mmd](./architecture.mmd) and is rendered to [architecture.png](./architecture.png) with `npx @mermaid-js/mermaid-cli`. The same image is used as the gallery card preview for the awesome-azd submission.
+
 ```mermaid
 flowchart LR
 	A[External AI Agent] -->|HTTP MCP request| B[Azure Container App Ingress]

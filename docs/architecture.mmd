@@ -1,0 +1,12 @@
+flowchart LR
+	A[External AI Agent] -->|HTTP MCP request| B[Azure Container App Ingress]
+	B --> C[Axum HTTP Layer]
+	C --> D[Auth Middleware]
+	D --> E[MCP Request Router]
+	E --> F[Tool Runtime]
+	F --> G[Safe System Metrics]
+	F --> H[Coordinate or Grid Calculator]
+	C --> I[SSE Response Stream]
+	E --> J[Structured JSON Response]
+	C --> K[Tracing and Logs]
+	K --> L[Azure Log Analytics]
