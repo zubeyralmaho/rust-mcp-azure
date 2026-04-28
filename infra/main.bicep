@@ -46,11 +46,42 @@ param maxReplicas int = 3
 @maxValue(1000)
 param scaleConcurrentRequests int = 50
 
+@description('Enable HTTP liveness/readiness probes against /healthz. Keep false for the first deployment (placeholder image does not implement /healthz); set to true once the real image is deployed via `azd deploy`.')
+param enableProbes bool = false
+
+@description('Azure Container Registry name. Defaults to a name derived from the environment.')
+param containerRegistryName string = ''
+
 var containerAppPort = 8080
 var resourceToken = toLower(uniqueString(subscription().id, resourceGroup().id, environmentName))
 var resolvedLogAnalyticsWorkspaceName = empty(logAnalyticsWorkspaceName) ? 'log-${environmentName}-${resourceToken}' : logAnalyticsWorkspaceName
 var resolvedContainerAppsEnvironmentName = empty(containerAppsEnvironmentName) ? 'cae-${environmentName}-${resourceToken}' : containerAppsEnvironmentName
 var resolvedContainerAppName = empty(containerAppName) ? 'ca-${environmentName}-${resourceToken}' : containerAppName
+var resolvedContainerRegistryName = empty(containerRegistryName) ? 'cr${replace(environmentName, '-', '')}${resourceToken}' : containerRegistryName
+var acrPullRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+
+var probesConfig = [
+  {
+    type: 'Liveness'
+    httpGet: {
+      path: '/healthz'
+      port: containerAppPort
+    }
+    initialDelaySeconds: 5
+    periodSeconds: 30
+    failureThreshold: 3
+  }
+  {
+    type: 'Readiness'
+    httpGet: {
+      path: '/healthz'
+      port: containerAppPort
+    }
+    initialDelaySeconds: 2
+    periodSeconds: 10
+    failureThreshold: 3
+  }
+]
 
 var commonTags = {
   'azd-env-name': environmentName
@@ -67,6 +98,29 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
       name: 'PerGB2018'
     }
     retentionInDays: 30
+  }
+}
+
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+  name: resolvedContainerRegistryName
+  location: location
+  tags: commonTags
+  sku: {
+    name: 'Basic'
+  }
+  properties: {
+    adminUserEnabled: false
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, containerApp.id, acrPullRoleId)
+  scope: containerRegistry
+  properties: {
+    principalId: containerApp.identity.principalId
+    roleDefinitionId: acrPullRoleId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -110,6 +164,12 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           value: mcpApiKey
         }
       ]
+      registries: [
+        {
+          server: containerRegistry.properties.loginServer
+          identity: 'system'
+        }
+      ]
     }
     template: {
       containers: [
@@ -142,28 +202,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json(containerCpu)
             memory: containerMemory
           }
-          probes: [
-            {
-              type: 'Liveness'
-              httpGet: {
-                path: '/healthz'
-                port: containerAppPort
-              }
-              initialDelaySeconds: 5
-              periodSeconds: 30
-              failureThreshold: 3
-            }
-            {
-              type: 'Readiness'
-              httpGet: {
-                path: '/healthz'
-                port: containerAppPort
-              }
-              initialDelaySeconds: 2
-              periodSeconds: 10
-              failureThreshold: 3
-            }
-          ]
+          probes: enableProbes ? probesConfig : []
         }
       ]
       scale: {
@@ -190,3 +229,5 @@ output SERVICE_API_IDENTITY_PRINCIPAL_ID string = containerApp.identity.principa
 output AZURE_CONTAINER_APPS_ENVIRONMENT_NAME string = containerAppsEnvironment.name
 output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = logAnalyticsWorkspace.name
 output AZURE_LOG_ANALYTICS_WORKSPACE_ID string = logAnalyticsWorkspace.id
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.properties.loginServer
+output AZURE_CONTAINER_REGISTRY_NAME string = containerRegistry.name
