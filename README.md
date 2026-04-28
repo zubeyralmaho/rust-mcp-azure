@@ -228,6 +228,8 @@ The script auto-resolves `BASE_URL` and `MCP_API_KEY` from the active `azd` envi
 
 The script exits non-zero on the first failure so it can gate release pipelines.
 
+> **Windows / macOS native note:** `safe_system_metrics` reads `/proc`, which only exists on Linux. When running the server locally on a non-Linux host (e.g. `cargo run` on Windows or macOS) and pointing the smoke test at `localhost`, that single check is skipped automatically — the other three still run. Remote Azure Container Apps deployments are always Linux, so all four checks execute against `azd up` endpoints.
+
 ## License
 
 Released under the [MIT License](./LICENSE).

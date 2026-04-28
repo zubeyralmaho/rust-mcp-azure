@@ -81,6 +81,21 @@ BASE_URL="${BASE_URL%/}"
 
 declare -i FAILURES=0
 declare -i PASSES=0
+declare -i SKIPS=0
+
+# Detect host OS — used to skip Linux-only checks when the server is running
+# locally on a non-Linux host (e.g. Windows native, where safe_system_metrics
+# reads /proc and returns 500). Remote Azure deployments are always Linux,
+# so the skip only triggers for localhost/127.0.0.1 base URLs.
+HOST_IS_LINUX=1
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*|Windows_NT)
+    HOST_IS_LINUX=0
+    ;;
+  Darwin)
+    HOST_IS_LINUX=0
+    ;;
+esac
 
 pass() {
   PASSES+=1
@@ -90,6 +105,14 @@ pass() {
 fail() {
   FAILURES+=1
   printf '  FAIL  %s\n' "$1"
+  if [[ -n "${2:-}" ]]; then
+    printf '        %s\n' "$2"
+  fi
+}
+
+skip() {
+  SKIPS+=1
+  printf '  SKIP  %s\n' "$1"
   if [[ -n "${2:-}" ]]; then
     printf '        %s\n' "$2"
   fi
@@ -177,18 +200,33 @@ else
 fi
 
 # 4. /mcp safe_system_metrics
-metrics_payload='{"tool":"safe_system_metrics","input":{"sections":["cpu","memory","runtime"]}}'
-result=$(http_call POST /mcp auth "$metrics_payload")
-status=$(printf '%s' "$result" | head -n1)
-body=$(printf '%s' "$result" | tail -n +2)
-if [[ "$status" == "200" && "$(extract_field "$body" ok)" == "true" ]]; then
-  pass "POST /mcp safe_system_metrics returns ok=true"
+# safe_system_metrics reads /proc, which only exists on Linux. When the server
+# runs locally on Windows or macOS native (i.e. BASE_URL points at localhost),
+# the call returns HTTP 500. Remote Azure deployments are always Linux, so we
+# only skip when both conditions hold: non-Linux host *and* localhost target.
+is_localhost=0
+case "$BASE_URL" in
+  *localhost*|*127.0.0.1*|*://[::1]*)
+    is_localhost=1
+    ;;
+esac
+
+if (( HOST_IS_LINUX == 0 )) && (( is_localhost == 1 )); then
+  skip "POST /mcp safe_system_metrics" "non-Linux host + localhost target; /proc not available"
 else
-  fail "POST /mcp safe_system_metrics" "status=$status body=$body"
+  metrics_payload='{"tool":"safe_system_metrics","input":{"sections":["cpu","memory","runtime"]}}'
+  result=$(http_call POST /mcp auth "$metrics_payload")
+  status=$(printf '%s' "$result" | head -n1)
+  body=$(printf '%s' "$result" | tail -n +2)
+  if [[ "$status" == "200" && "$(extract_field "$body" ok)" == "true" ]]; then
+    pass "POST /mcp safe_system_metrics returns ok=true"
+  else
+    fail "POST /mcp safe_system_metrics" "status=$status body=$body"
+  fi
 fi
 
 echo
-echo "Summary: ${PASSES} passed, ${FAILURES} failed"
+echo "Summary: ${PASSES} passed, ${FAILURES} failed, ${SKIPS} skipped"
 
 if (( FAILURES > 0 )); then
   exit 1
